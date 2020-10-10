@@ -2,6 +2,8 @@
 
 #include <SFML/Graphics.hpp>
 
+#include "unistd.h"
+
 #include "logo.hpp"
 
 // Config values
@@ -20,7 +22,7 @@ class RigidObject {
     sf::Window *_win;
 
     // The "idle" velocity that the logo moves at with no user interaction
-    static constexpr float _minVelocity = 25; // Placeholder, adjust to something more reasonable
+    static constexpr float _minVelocity = 250; // Placeholder, adjust to something more reasonable
     // Constant deceleration (pixels/second/second)
     static constexpr float _decel = -2;
 
@@ -31,8 +33,9 @@ public:
 
     RigidObject(sf::Window *win, sf::Sprite *sprite) :
             _win(win),
-            _sprite(sprite),
-            _spriteBounds(_sprite->getGlobalBounds()) {}
+            _sprite(sprite) {
+        updateSpriteBounds();
+    }
 
     void setPosition(float x, float y) {
         _sprite->setPosition(x, y);
@@ -41,6 +44,15 @@ public:
     void setVelocity(float x, float y) {
         _xVel = x;
         _yVel = y;
+    }
+
+    /*
+     * A (hopefully temporary) fix to an issue wherein the texture of the sprite passed into the constructor was
+     * initialized after the construction of this object. This resulted in _spriteBounds always being an empty rect, and
+     * collision shenanigans ensued. This function simply tells the physics object to reload the value from the sprite.
+     */
+    void updateSpriteBounds() {
+        _spriteBounds = _sprite->getGlobalBounds();
     }
 
     // Do not call when dragging object
@@ -74,7 +86,7 @@ public:
         _sprite->setPosition(xPot, yPot);
 
         if (xBounce && yBounce) {
-            std::cout << "Perfect corner hit!" << std::endl;
+//            std::cout << "Perfect corner hit!" << std::endl;
         }
 
         // Direction update
@@ -94,6 +106,7 @@ class Application {
 
     // Graphics
     sf::RenderWindow _win;
+    sf::Image _logoImage;
     sf::Texture _logoTexture;
     sf::Sprite _logoSprite;
 
@@ -104,7 +117,7 @@ class Application {
     sf::Clock _clock;
 
     // Misc. State
-    bool _quit = true;
+    bool _quit = false;
 
     void update() {
         sf::Event e{};
@@ -112,9 +125,18 @@ class Application {
             if (e.type == sf::Event::Closed) {
                 _quit = true;
             }
+
+            if (e.type == sf::Event::Resized)
+            {
+                // update the view to the new size of the window
+                sf::FloatRect visibleArea(0, 0, e.size.width, e.size.height);
+                _win.setView(sf::View(visibleArea));
+            }
         }
 
-
+        sf::Time elapsed = _clock.getElapsedTime();
+        _clock.restart();
+        _logoObject.update(elapsed);
     }
 
     void render() {
@@ -125,15 +147,24 @@ class Application {
 
 public:
     Application() :
-            _win(sf::VideoMode(winWidth, winHeight), "Hello SFML!"),
+            _win(sf::VideoMode(winWidth, winHeight), "DVD Logo Simulator 2020", sf::Style::Default | sf::Style::Resize),
             _logoObject(&_win, &_logoSprite) {
+
         if (!_logoTexture.loadFromMemory(&dvd_png, dvd_png_len)) {
             _quit = true;
         }
+
+        _logoImage.loadFromMemory(&dvd_png, dvd_png_len);
+        _win.setIcon(_logoImage.getSize().x, _logoImage.getSize().y, _logoImage.getPixelsPtr());
+
         _logoTexture.setSmooth(true);
 
         _logoSprite.setTexture(_logoTexture);
         _logoSprite.setScale(logoScale, logoScale);
+
+        // Necessary because the texure is set after construction; this tells the physics object
+        // to reset its internally cached version of the texture rect (the size of the sprite on the screen).
+        _logoObject.updateSpriteBounds();
     }
 
     int run() {

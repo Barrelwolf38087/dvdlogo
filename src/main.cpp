@@ -2,8 +2,6 @@
 
 #include <SFML/Graphics.hpp>
 
-#include "unistd.h"
-
 #include "logo.hpp"
 
 // Config values
@@ -104,39 +102,80 @@ public:
 
 class Application {
 
+    using Event = sf::Event;
+
+
     // Graphics
     sf::RenderWindow _win;
-    sf::Image _logoImage;
-    sf::Texture _logoTexture;
+    sf::Image _logoImage; // Window icon
+    sf::Texture _logoTexture; // The important one
     sf::Sprite _logoSprite;
 
     // Physics
     RigidObject _logoObject;
 
     // Timing
-    sf::Clock _clock;
+    sf::Clock _velocityClock;
 
     // Misc. State
     bool _quit = false;
+    bool _dragging = false;
+
+    sf::Vector2f getWorldMousePos() {
+        return _win.mapPixelToCoords(sf::Mouse::getPosition(_win));
+//        return sf::Vector2f{sf::Mouse::getPosition(_win)};
+    }
 
     void update() {
+
+        static sf::FloatRect visibleArea{};
+        static sf::Vector2f mousePos{}; // World coords, not necessarily the same as screen coords
+        static sf::Vector2f prevMousePos{}; // Used for calculating relative movement and velocity
+
+        // Always flush events before updating/rendering, or else the program may feel unresponsive
         sf::Event e{};
         while (_win.pollEvent(e)) {
-            if (e.type == sf::Event::Closed) {
-                _quit = true;
+
+            switch (e.type) {
+                case Event::Closed:
+                    _quit = true;
+                    break;
+                case Event::Resized:
+                    // update the view to the new size of the window
+                    visibleArea = sf::FloatRect(0, 0, e.size.width, e.size.height);
+                    _win.setView(sf::View(visibleArea));
+                    break;
+                case Event::MouseButtonPressed:
+                    mousePos = getWorldMousePos();
+                    if (e.mouseButton.button == sf::Mouse::Left && _logoSprite.getGlobalBounds().contains(mousePos.x, mousePos.y)) {
+
+                        _dragging = true;
+                        prevMousePos = mousePos;
+                    }
+                    break;
+                case Event::MouseButtonReleased:
+                    if (e.mouseButton.button == sf::Mouse::Left && _dragging) {
+                        _dragging = false;
+                    }
+                    break;
+                case Event::MouseMoved:
+                    if (_dragging) {
+                        mousePos = getWorldMousePos();
+                        _logoSprite.move(mousePos.x - prevMousePos.x, mousePos.y - prevMousePos.y);
+                        prevMousePos = mousePos;
+                    }
+                    break;
+
+                default:
+                    break;
             }
 
-            if (e.type == sf::Event::Resized)
-            {
-                // update the view to the new size of the window
-                sf::FloatRect visibleArea(0, 0, e.size.width, e.size.height);
-                _win.setView(sf::View(visibleArea));
-            }
+
         }
 
-        sf::Time elapsed = _clock.getElapsedTime();
-        _clock.restart();
-        _logoObject.update(elapsed);
+        sf::Time elapsed = _velocityClock.getElapsedTime();
+        _velocityClock.restart();
+        if (!_dragging) _logoObject.update(elapsed);
     }
 
     void render() {
@@ -156,6 +195,7 @@ public:
 
         _logoImage.loadFromMemory(&dvd_png, dvd_png_len);
         _win.setIcon(_logoImage.getSize().x, _logoImage.getSize().y, _logoImage.getPixelsPtr());
+        _win.setVerticalSyncEnabled(true);
 
         _logoTexture.setSmooth(true);
 
@@ -168,7 +208,7 @@ public:
     }
 
     int run() {
-        _clock.restart();
+        _velocityClock.restart();
 
         while (_win.isOpen()) {
             update();

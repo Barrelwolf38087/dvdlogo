@@ -1,0 +1,18 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/willow/Documents/School/Programming/dvdlogo/src/logo.hpp
+
+/home/willow/Documents/School/Programming/dvdlogo/src/main.cpp
+iostream
+-
+SFML/Graphics.hpp
+-
+logo.hpp
+/home/willow/Documents/School/Programming/dvdlogo/src/logo.hpp
+
